@@ -242,6 +242,22 @@ export const agentApi = {
         return handleResponse(res);
     },
 
+    // ── Coaching ──
+    startCoaching: async (ticketId) => {
+        const res = await fetch(`${BASE_URL}/api/v1/coach/${ticketId}`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
+    pollCoachingJob: async (jobId) => {
+        const res = await fetch(`${BASE_URL}/api/v1/coach/jobs/${jobId}`, {
+            headers: getAuthHeaders()
+        });
+        return handleResponse(res);
+    },
+
     // ── Shared Auth GET ──
     getMe: async () => {
         const res = await fetch(`${BASE_URL}/api/v1/auth/me`, { headers: getAuthHeaders() });

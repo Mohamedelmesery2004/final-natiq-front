@@ -89,7 +89,7 @@ export const teamLeaderApi = {
     },
 
     analyzeTicket: async (ticketId) => {
-        const res = await fetch(`${API_BASE}/qa/tickets/${ticketId}/analyze`, {
+        const res = await fetch(`${BASE_URL}/api/v1/qa/analyze/${ticketId}`, {
             method: 'POST',
             headers: getAuthHeaders()
         });

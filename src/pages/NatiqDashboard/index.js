@@ -47,6 +47,7 @@ import {
     LightBulbIcon,
     ExclamationTriangleIcon,
     UserCircleIcon,
+    AcademicCapIcon,
 } from "@heroicons/react/24/outline";
 import { StarIcon as StarSolid } from "@heroicons/react/24/solid";
 
@@ -1951,6 +1952,49 @@ function AnalyticsView() {
         fetchAnalytics();
     }, [filter, fetchAnalytics]);
 
+    // ── Coaching state ──
+    const [tickets, setTickets] = useState([]);
+    const [selectedTicketId, setSelectedTicketId] = useState('');
+    const [coachingResult, setCoachingResult] = useState(null);
+    const [coachingLoading, setCoachingLoading] = useState(false);
+    const [coachingError, setCoachingError] = useState('');
+
+    useEffect(() => {
+        agentApi.getTickets('?limit=20&sort=-updatedAt').then(data => {
+            setTickets(data.results || data.tickets || []);
+        }).catch(() => {});
+    }, []);
+
+    const handleStartCoaching = async () => {
+        if (!selectedTicketId) return;
+        setCoachingLoading(true);
+        setCoachingError('');
+        setCoachingResult(null);
+        try {
+            const resp = await agentApi.startCoaching(selectedTicketId);
+            const jobId = resp.data?.jobId || resp.jobId;
+            if (!jobId) throw new Error('No jobId returned');
+
+            // Poll for results
+            const poll = async () => {
+                const pollResp = await agentApi.pollCoachingJob(jobId);
+                const status = pollResp.data?.status || pollResp.status;
+                if (status === 'completed') {
+                    setCoachingResult(pollResp.data?.result || pollResp.result);
+                    setCoachingLoading(false);
+                } else if (status === 'failed') {
+                    throw new Error(pollResp.message || 'Coaching analysis failed');
+                } else {
+                    setTimeout(poll, 3000);
+                }
+            };
+            poll();
+        } catch (error) {
+            setCoachingError(error.message || 'Failed to start coaching analysis');
+            setCoachingLoading(false);
+        }
+    };
+
     const filterOptions = ["All Tickets", "Resolved", "Pending", "High Emotion", "Low Emotion"];
 
     // ── Derived analytics values ──
@@ -2176,6 +2220,13 @@ function AnalyticsView() {
                     onClick={() => setSubTab('activity')}
                 >
                     <ClockIcon /> Activity
+                </button>
+                <button
+                    type="button"
+                    className={`cd-aa-tab ${subTab === 'coaching' ? 'active' : ''}`}
+                    onClick={() => setSubTab('coaching')}
+                >
+                    <AcademicCapIcon /> Coaching
                 </button>
             </div>
 
@@ -2601,6 +2652,90 @@ function AnalyticsView() {
                         </div>
                     </div>
                 </div>
+            </div>
+            )}
+
+            {/* ════ COACHING TAB ════ */}
+            {subTab === 'coaching' && (
+            <div key="coaching" className="cd-aa-wrap cd-aa-anim">
+                <div className="cd-aa-panel">
+                    <div className="cd-aa-panel-head">
+                        <div><h3>AI Coaching</h3><p>Get personalized coaching recommendations for any ticket.</p></div>
+                    </div>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', marginTop: 16 }}>
+                        <select
+                            value={selectedTicketId}
+                            onChange={e => setSelectedTicketId(e.target.value)}
+                            style={{
+                                padding: '10px 14px',
+                                borderRadius: 10,
+                                border: '1px solid #d0d7de',
+                                fontSize: 14,
+                                minWidth: 280,
+                                background: '#fff',
+                                color: '#042835',
+                            }}
+                        >
+                            <option value="">Select a ticket…</option>
+                            {tickets.map(t => (
+                                <option key={t._id} value={t._id}>
+                                    {t.ticketNumber || t._id.slice(-6)} — {t.customerId?.name || 'Unknown'}
+                                </option>
+                            ))}
+                        </select>
+                        <button
+                            type="button"
+                            onClick={handleStartCoaching}
+                            disabled={coachingLoading || !selectedTicketId}
+                            style={{
+                                padding: '10px 24px',
+                                borderRadius: 10,
+                                border: 'none',
+                                background: coachingLoading ? '#94a3b8' : 'linear-gradient(135deg, #042835, #0a4a36)',
+                                color: '#fff',
+                                fontSize: 14,
+                                fontWeight: 600,
+                                cursor: coachingLoading || !selectedTicketId ? 'not-allowed' : 'pointer',
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: 8,
+                            }}
+                        >
+                            {coachingLoading ? (
+                                <>Processing…</>
+                            ) : (
+                                <><AcademicCapIcon style={{ width: 18, height: 18 }} /> Start Coaching</>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {coachingError && (
+                    <div className="cd-aa-panel" style={{ borderLeft: '4px solid #ef4444', marginTop: 16 }}>
+                        <p style={{ color: '#ef4444', margin: 0 }}>{coachingError}</p>
+                    </div>
+                )}
+
+                {coachingResult && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16, marginTop: 20 }}>
+                        <div className="cd-aa-panel">
+                            <h4 style={{ margin: '0 0 8px', color: '#042835' }}>AI Recommendations</h4>
+                            <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{coachingResult.ai_recommendations}</p>
+                        </div>
+                        <div className="cd-aa-panel">
+                            <h4 style={{ margin: '0 0 8px', color: '#042835' }}>Weakness Analysis</h4>
+                            <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{coachingResult.weakness_analysis}</p>
+                        </div>
+                        <div className="cd-aa-panel">
+                            <h4 style={{ margin: '0 0 8px', color: '#042835' }}>Suggested Learning</h4>
+                            <p style={{ margin: 0, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{coachingResult.suggested_learning}</p>
+                        </div>
+                        <div className="cd-aa-panel" style={{ background: 'linear-gradient(135deg, #f0fdf4, #ecfdf5)', borderLeft: '4px solid #16a34a' }}>
+                            <h4 style={{ margin: '0 0 8px', color: '#16a34a' }}>Encouragement</h4>
+                            <p style={{ margin: 0, fontStyle: 'italic', lineHeight: 1.6 }}>"{coachingResult.encouragement_quote}"</p>
+                        </div>
+                    </div>
+                )}
             </div>
             )}
         </div>
