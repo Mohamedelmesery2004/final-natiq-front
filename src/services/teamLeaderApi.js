@@ -76,16 +76,45 @@ export const teamLeaderApi = {
     },
 
     getQAResults: async (params = '') => {
-        const res = await fetch(`${API_BASE}/qa/results${params}`, { headers: getAuthHeaders() });
+        const res = await fetch(`${BASE_URL}/api/v1/qa/results${params}`, { headers: getAuthHeaders() });
         return handleResponse(res);
     },
 
-    getQADetail: async (ticketId) => {
-        const res = await fetch(`${BASE_URL}/api/v1/qa/analyze/${ticketId}`, {
-            method: 'POST',
-            headers: getAuthHeaders()
-        });
-        return handleResponse(res);
+    getQADetail: async (id) => {
+        const res = await fetch(`${BASE_URL}/api/v1/qa/results/${id}`, { headers: getAuthHeaders() });
+        const raw = await handleResponse(res);
+        const a = raw?.analysis || {};
+        return {
+            ...raw,
+            scores: {
+                professionalism: a.communication_clarity_score ?? null,
+                empathy: a.customer_satisfaction === 'high' ? 5 : a.customer_satisfaction === 'medium' ? 3 : 1,
+                quality: a.communication_clarity_score ?? null,
+            },
+            fullAnalysis: {
+                quality_assessment: {
+                    conversation_quality_score: a.communication_clarity_score ?? null,
+                    qa_verdict: a.customer_satisfaction || '—',
+                    main_failures: [],
+                },
+                ticket_summary: {
+                    short_summary: a.conversation_summary || a.summary_for_dashboard || '',
+                },
+                agent_analysis: {
+                    agent_professionalism_score: a.communication_clarity_score ?? null,
+                    agent_empathy_score: a.customer_satisfaction === 'high' ? 5 : a.customer_satisfaction === 'medium' ? 3 : 1,
+                    tone_reasoning: a.agent_behavior || '',
+                    overall_tone: a.agent_behavior || '',
+                    issues: [],
+                },
+                resolution_analysis: {
+                    resolution_status: a.resolution_status || '—',
+                    resolution_reasoning: a.conversation_summary || '',
+                    ticket_closed_correctly: a.resolution_status === 'resolved',
+                },
+            },
+            teamLeaderNotes: raw?.teamLeaderNotes || [],
+        };
     },
 
     analyzeTicket: async (ticketId) => {
