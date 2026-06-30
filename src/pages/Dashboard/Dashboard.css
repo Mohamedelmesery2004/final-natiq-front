@@ -1,0 +1,263 @@
+/* Content-area only — layout/sidebar/topbar come from NatiqDashboard.css */
+
+.mgr-content {
+  padding: 20px 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* ── Overview ── */
+.mgr-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* ── Staggered blur-fade identical to agent dashboard bento grid ── */
+.mgr-hero,
+.mgr-kpi-grid > *,
+.mgr-charts-grid > *,
+.mgr-charts-compact > * {
+  opacity: 0;
+  animation: cdBlurFadeIn 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.mgr-hero                        { animation-delay: 0.05s; }
+.mgr-kpi-grid > *:nth-child(1)   { animation-delay: 0.15s; }
+.mgr-kpi-grid > *:nth-child(2)   { animation-delay: 0.25s; }
+.mgr-kpi-grid > *:nth-child(3)   { animation-delay: 0.35s; }
+.mgr-kpi-grid > *:nth-child(4)   { animation-delay: 0.45s; }
+.mgr-charts-grid > *:nth-child(1){ animation-delay: 0.30s; }
+.mgr-charts-grid > *:nth-child(2){ animation-delay: 0.40s; }
+.mgr-charts-compact > *:nth-child(1){ animation-delay: 0.35s; }
+.mgr-charts-compact > *:nth-child(2){ animation-delay: 0.45s; }
+
+/* Sub-pages fade in (NatiqDashboard.css already handles audit/users/roles etc.) */
+.mgr-profile-card {
+  opacity: 0;
+  animation: cdBlurFadeIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: 0.05s;
+}
+
+/* ── Hero banner ── */
+.mgr-hero {
+  border-radius: 16px;
+  background: linear-gradient(120deg, #042835, #0f4a5f);
+  color: #fff;
+  padding: 24px 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.mgr-hero h2 {
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.mgr-hero p {
+  margin: 0;
+  color: #c9d8e4;
+  font-size: 13px;
+}
+
+.mgr-hero-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255,255,255,0.12);
+  backdrop-filter: blur(8px);
+  padding: 8px 16px;
+  border-radius: 100px;
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.mgr-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.mgr-status-dot.active { background: #22C55E; }
+.mgr-status-dot.trialing { background: #3B82F6; }
+.mgr-status-dot.past_due { background: #F59E0B; }
+.mgr-status-dot.canceled { background: #EF4444; }
+.mgr-status-dot.expired { background: #94A3B8; }
+
+/* ── KPI grid ── */
+.mgr-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.mgr-kpi-card {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.mgr-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+
+.mgr-kpi-label {
+  margin: 0 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.mgr-kpi-value {
+  margin: 0 0 6px;
+  font-size: 32px;
+  font-weight: 800;
+  color: #042835;
+  line-height: 1;
+  transition: opacity 0.2s;
+}
+
+.mgr-kpi-sub {
+  margin: 0;
+  font-size: 12px;
+  color: #94a3b8;
+}
+
+/* ── Charts grid ── */
+.mgr-charts-grid {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 14px;
+}
+
+.mgr-charts-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.mgr-loader {
+  min-height: 300px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+  font-size: 14px;
+}
+
+/* ── Panels grid (legacy) ── */
+.mgr-panels-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.mgr-panel {
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  padding: 20px 22px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.mgr-panel h3 {
+  margin: 0 0 14px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #042835;
+}
+
+.mgr-quick-btn {
+  width: 100%;
+  text-align: left;
+  border: 1px solid #e5e7eb;
+  background: #f9fafb;
+  border-radius: 10px;
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #374151;
+  font-family: inherit;
+  font-weight: 500;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.mgr-quick-btn:last-child { margin-bottom: 0; }
+
+.mgr-quick-btn:hover {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.mgr-checklist {
+  margin: 0;
+  padding-left: 18px;
+  color: #475569;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+/* ── Profile card ── */
+.mgr-profile-card {
+  max-width: 540px;
+  background: #fff;
+  border: 1px solid #eaecf0;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+}
+
+.mgr-profile-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #042835, #0f4a5f);
+  color: #caf301;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  font-weight: 800;
+}
+
+.mgr-profile-card h2 { margin: 14px 0 4px; font-size: 20px; }
+.mgr-profile-card > p { margin: 0 0 18px; color: #64748b; font-size: 14px; }
+
+.mgr-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mgr-profile-grid div {
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mgr-profile-grid span { color: #64748b; font-size: 12px; }
+.mgr-profile-grid strong { font-size: 14px; color: #042835; }
+
+@media (max-width: 1100px) {
+  .mgr-kpi-grid    { grid-template-columns: repeat(2, 1fr); }
+  .mgr-charts-grid    { grid-template-columns: 1fr; }
+  .mgr-panels-grid { grid-template-columns: 1fr; }
+}
