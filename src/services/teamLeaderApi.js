@@ -80,8 +80,11 @@ export const teamLeaderApi = {
         return handleResponse(res);
     },
 
-    getQADetail: async (id) => {
-        const res = await fetch(`${API_BASE}/qa/results/${id}`, { headers: getAuthHeaders() });
+    getQADetail: async (ticketId) => {
+        const res = await fetch(`${BASE_URL}/api/v1/qa/analyze/${ticketId}`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
         return handleResponse(res);
     },
 
