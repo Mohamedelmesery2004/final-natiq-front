@@ -19,7 +19,7 @@ import SLASection from "./components/SLASection";
 import WorkloadSection from "./components/WorkloadSection";
 import TopAgents from "./components/TopAgents";
 import LowPerformers from "./components/LowPerformers";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, Tooltip } from 'recharts';
 import {
     Squares2X2Icon,
     UserGroupIcon,
@@ -506,6 +506,111 @@ const ANALYSIS_STATUS_STYLE = {
     not_applicable: { bg: '#f3f4f6', color: '#6b7280', label: '—' },
 };
 
+
+function genSparkline(value, max) {
+    const pts = 10;
+    const target = value / max;
+    const arr = [];
+    for (let i = 0; i < pts; i++) {
+        const t = i / (pts - 1);
+        const base = target * (0.3 + 0.7 * t);
+        const noise = (Math.random() - 0.5) * 0.2;
+        arr.push(Math.max(0.05, Math.min(0.95, base + noise)));
+    }
+    return arr.map((v, i) => ({ x: i, v }));
+}
+
+function ScoreBar({ label, value, max = 5 }) {
+    const pct = Math.round((value / max) * 100);
+    const lineColor = '#ef4444';
+    const sparkData = genSparkline(value, max);
+    const gradId = `sfade-${label.replace(/\s/g, '')}`;
+    const filterId = `sblur-${label.replace(/\s/g, '')}`;
+    return (
+        <div style={{ cursor: 'default' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
+                <div>
+                    <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, marginBottom: 2 }}>{label}</div>
+                    <div style={{ fontSize: 18, fontWeight: 700, color: '#0f172a', lineHeight: 1 }}>
+                        {value}<span style={{ fontSize: 14, fontWeight: 400, color: '#cbd5e1' }}>/{max}</span>
+                    </div>
+                </div>
+                <span style={{ fontSize: 18, fontWeight: 700, color: '#ef4444' }}>{pct}%</span>
+            </div>
+            <div style={{ height: 60, width: '100%' }}>
+                <svg width="100%" height="100%" viewBox="0 0 200 60" preserveAspectRatio="none" style={{ display: 'block', overflow: 'visible' }}>
+                    <defs>
+                        <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stopColor={lineColor} stopOpacity={0.15} />
+                            <stop offset="100%" stopColor={lineColor} stopOpacity={0} />
+                        </linearGradient>
+                    </defs>
+                    <path d={buildAreaPath(sparkData, 200, 60)} fill={`url(#${gradId})`} />
+                    <path d={buildSmoothPath(sparkData, 200, 60)} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+            </div>
+        </div>
+    );
+}
+
+function buildSmoothPath(data, w, h) {
+    const pts = data.map((d, i) => ({ x: (i / (data.length - 1)) * w, y: h - d.v * h }));
+    if (pts.length < 2) return '';
+    const parts = pts.map((p, i) => {
+        if (i === 0) return `M${p.x},${p.y}`;
+        const prev = pts[i - 1];
+        const cx1 = (prev.x + p.x) / 2;
+        const cy1 = prev.y;
+        const cx2 = (prev.x + p.x) / 2;
+        const cy2 = p.y;
+        return `C${cx1},${cy1} ${cx2},${cy2} ${p.x},${p.y}`;
+    });
+    return parts.join(' ');
+}
+
+function buildAreaPath(data, w, h) {
+    const smooth = buildSmoothPath(data, w, h);
+    if (!smooth) return '';
+    const last = data[data.length - 1];
+    const first = data[0];
+    return `${smooth} L${(data.length - 1) / (data.length - 1) * w},${h} L0,${h} Z`;
+}
+
+function CircleProgress({ pct = 0, size = 104, strokeWidth = 10, gradientId = 'circleGrad', glowColor, gradStops }) {
+    const radius = (size - strokeWidth) / 2;
+    const circumference = 2 * Math.PI * radius;
+    const clampedPct = Math.max(0, Math.min(100, pct));
+    const offset = circumference - (clampedPct / 100) * circumference;
+    const stops = gradStops || ['#34d399', '#10b981'];
+    return (
+        <svg width={size} height={size} style={{ display: 'block' }}>
+            <defs>
+                <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="100%">
+                    <stop offset="0%" stopColor={stops[0]} />
+                    <stop offset="100%" stopColor={stops[1]} />
+                </linearGradient>
+            </defs>
+            <circle
+                cx={size / 2} cy={size / 2} r={radius}
+                fill="none" stroke="#f1f5f9" strokeWidth={strokeWidth}
+            />
+            <g style={{ transform: 'rotate(-90deg)', transformOrigin: `${size / 2}px ${size / 2}px` }}>
+                <circle
+                    cx={size / 2} cy={size / 2} r={radius}
+                    fill="none" stroke={`url(#${gradientId})`}
+                    strokeWidth={strokeWidth} strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={offset}
+                    style={{
+                        transition: 'stroke-dashoffset 0.7s cubic-bezier(0.4, 0, 0.2, 1)',
+                        filter: glowColor ? `drop-shadow(0 2px 8px ${glowColor}66)` : 'none',
+                    }}
+                />
+            </g>
+        </svg>
+    );
+}
+
 function pickFullAnalysis(qaRecord) {
     if (!qaRecord) return null;
     return qaRecord.fullAnalysis || qaRecord.analysis || null;
@@ -616,6 +721,17 @@ function TicketsView({ agents = [] }) {
     const fa = pickFullAnalysis(qaData);
     const scores = qaData?.scores || {};
     const overallNum = fa?.quality_assessment?.conversation_quality_score ?? scores.quality ?? null;
+
+    const scoreMax = 5;
+    const scorePct = overallNum != null ? Math.round((overallNum / scoreMax) * 100) : 0;
+    const scoreColor = scorePct >= 71 ? '#10b981' : scorePct >= 41 ? '#f59e0b' : '#ef4444';
+    const scoreLabel = scorePct >= 71 ? 'Excellent' : scorePct >= 41 ? 'Average' : 'Needs Improvement';
+    const scoreGradientId = 'scoreGrad';
+    const scoreGradStops = scorePct >= 71
+        ? ['#34d399', '#10b981']
+        : scorePct >= 41
+            ? ['#fbbf24', '#f59e0b']
+            : ['#f87171', '#ef4444'];
 
     const scoreChartData = [
         { name: 'Professionalism', value: scores.professionalism ?? fa?.agent_analysis?.agent_professionalism_score ?? 0, color: '#3b82f6' },
@@ -784,40 +900,50 @@ function TicketsView({ agents = [] }) {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
                                     {/* ─── KPI HEADER ─── */}
-                                    <div style={{ background: 'linear-gradient(135deg, #ffffff 60%, #f8fafc)', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 24 }}>
-                                        <div style={{ position: 'relative', width: 96, height: 96, flexShrink: 0 }}>
-                                            <ResponsiveContainer width="100%" height="100%">
-                                                <PieChart>
-                                                    <Pie data={[
-                                                        { name: 'Score', value: overallNum != null ? overallNum : 0, color: overallNum >= 4 ? '#10b981' : overallNum >= 2.5 ? '#f59e0b' : '#ef4444' },
-                                                        { name: 'Remaining', value: overallNum != null ? 5 - overallNum : 5, color: '#f1f5f9' },
-                                                    ]} cx="50%" cy="50%" innerRadius={30} outerRadius={44}
-                                                        startAngle={90} endAngle={-270} dataKey="value" stroke="none"
-                                                        cornerRadius={6}>
-                                                        {[0, 1].map((i) => (
-                                                            <Cell key={i} fill={i === 0 ? (overallNum >= 4 ? '#10b981' : overallNum >= 2.5 ? '#f59e0b' : '#ef4444') : '#f1f5f9'}
-                                                                style={{ filter: i === 0 ? `drop-shadow(0 2px 8px ${overallNum >= 4 ? '#10b981' : overallNum >= 2.5 ? '#f59e0b' : '#ef4444'}66)` : 'none' }} />
-                                                        ))}
-                                                    </Pie>
-                                                </PieChart>
-                                            </ResponsiveContainer>
-                                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 22, fontWeight: 800, color: '#0f172a', textAlign: 'center', lineHeight: 1 }}>
-                                                {overallNum != null ? Math.round(overallNum) : '—'}
-                                            </div>
+                                    <div style={{ background: 'linear-gradient(135deg, #ffffff 60%, #f8fafc)', borderRadius: 16, padding: 24, border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.04)', display: 'flex', alignItems: 'center', gap: 28 }}>
+                                        <div style={{ width: 104, height: 104, flexShrink: 0, position: 'relative' }} title={`${overallNum != null ? overallNum : 0} / ${scoreMax} — ${scorePct}%`}>
+                                            <CircleProgress
+                                                pct={scorePct}
+                                                size={104}
+                                                strokeWidth={10}
+                                                gradientId="kpiCircleGrad"
+                                                glowColor={scoreColor}
+                                                gradStops={scoreGradStops}
+                                            />
                                         </div>
-                                        <div style={{ flex: 1 }}>
-                                            <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8 }}>Conversation Quality</p>
-                                            <div style={{ marginTop: 6 }}>
+                                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                                                <div style={{ display: 'flex', alignItems: 'baseline', gap: 2 }}>
+                                                    <span style={{ fontSize: 30, fontWeight: 800, color: '#0f172a', lineHeight: 1, letterSpacing: -0.5 }}>
+                                                        {overallNum != null ? overallNum : '—'}
+                                                    </span>
+                                                    <span style={{ fontSize: 14, fontWeight: 500, color: '#94a3b8', marginLeft: 2 }}>/{scoreMax}</span>
+                                                </div>
+                                                <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', background: scoreColor, padding: '1px 8px', borderRadius: 5, lineHeight: '20px' }}>
+                                                    {scorePct}%
+                                                </span>
                                                 <span style={{
-                                                    display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 12px', borderRadius: 20, fontSize: 13, fontWeight: 600,
-                                                    background: (fa.quality_assessment?.qa_verdict === 'high' ? '#10b981' : fa.quality_assessment?.qa_verdict === 'medium' ? '#f59e0b' : fa.quality_assessment?.qa_verdict === 'low' ? '#ef4444' : '#f1f5f9') + '16',
-                                                    color: fa.quality_assessment?.qa_verdict === 'high' ? '#059669' : fa.quality_assessment?.qa_verdict === 'medium' ? '#d97706' : fa.quality_assessment?.qa_verdict === 'low' ? '#dc2626' : '#64748b',
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 11px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                                    background: `${scoreColor}14`,
+                                                    color: scoreColor,
                                                 }}>
-                                                    <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
+                                                    <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', display: 'inline-block' }} />
                                                     {fa.quality_assessment?.qa_verdict || '—'}
                                                 </span>
+                                                <span style={{
+                                                    display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                                                    background: `${scoreColor}0C`,
+                                                    color: scoreColor,
+                                                }}>
+                                                    {scoreLabel}
+                                                </span>
                                             </div>
-                                            <p style={{ margin: '8px 0 0', fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>{fa.ticket_summary?.short_summary || ''}</p>
+                                            <p style={{ margin: 0, fontSize: 11, fontWeight: 600, color: '#64748b', textTransform: 'uppercase', letterSpacing: 0.8 }}>
+                                                Conversation Quality
+                                            </p>
+                                            <p style={{ margin: 0, fontSize: 13, color: '#64748b', lineHeight: 1.5 }}>
+                                                {fa.ticket_summary?.short_summary || ''}
+                                            </p>
                                         </div>
                                     </div>
 
@@ -833,40 +959,10 @@ function TicketsView({ agents = [] }) {
                                                 <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: '#0f172a' }}>Scores</h3>
                                             </div>
                                             {scoreChartData.length > 0 ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-                                                    <div style={{ width: 96, height: 96, flexShrink: 0 }}>
-                                                        <ResponsiveContainer width="100%" height="100%">
-                                                            <PieChart>
-                                                                <Pie data={scoreChartData} cx="50%" cy="50%" innerRadius={28} outerRadius={46}
-                                                                    paddingAngle={3} dataKey="value" stroke="none">
-                                                                    {scoreChartData.map((entry, index) => (
-                                                                        <Cell key={index} fill={entry.color}
-                                                                            style={{ filter: `drop-shadow(0 2px 6px ${entry.color}66)` }} />
-                                                                    ))}
-                                                                </Pie>
-                                                                <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
-                                                                    formatter={(val) => [val, '/ 5']} />
-                                                            </PieChart>
-                                                        </ResponsiveContainer>
-                                                    </div>
-                                                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 10 }}>
-                                                        {scoreChartData.map((entry) => (
-                                                            <div key={entry.name}>
-                                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 3 }}>
-                                                                    <span style={{ fontSize: 12, color: '#64748b', fontWeight: 500 }}>{entry.name}</span>
-                                                                    <strong style={{ fontSize: 13, color: '#0f172a' }}>{entry.value}<span style={{ color: '#94a3b8', fontWeight: 400 }}>/5</span></strong>
-                                                                </div>
-                                                                <div style={{ width: '100%', height: 6, background: '#f1f5f9', borderRadius: 3, overflow: 'hidden' }}>
-                                                                    <div style={{
-                                                                        width: `${Math.min((entry.value / 5) * 100, 100)}%`,
-                                                                        height: '100%', borderRadius: 3,
-                                                                        background: entry.color,
-                                                                        transition: 'width 0.6s ease',
-                                                                    }} />
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                    </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                                    {scoreChartData.map((entry) => (
+                                                        <ScoreBar key={entry.name} label={entry.name} value={entry.value} max={scoreMax} />
+                                                    ))}
                                                 </div>
                                             ) : (
                                                 <p style={{ margin: 0, fontSize: 13, color: '#94a3b8' }}>No scores available</p>
