@@ -80,37 +80,46 @@ export const teamLeaderApi = {
         return handleResponse(res);
     },
 
-    getQADetail: async (id) => {
-        const res = await fetch(`${BASE_URL}/api/v1/qa/results/${id}`, { headers: getAuthHeaders() });
+    getQADetail: async (ticketId) => {
+        const res = await fetch(`${BASE_URL}/api/v1/qa/results/by-ticket/${ticketId}`, { headers: getAuthHeaders() });
         const raw = await handleResponse(res);
-        const a = raw?.analysis || {};
+        const n = raw?.natiqAnalysis || {};
         return {
             ...raw,
-            scores: {
-                professionalism: a.communication_clarity_score ?? null,
-                empathy: a.customer_satisfaction === 'high' ? 5 : a.customer_satisfaction === 'medium' ? 3 : 1,
-                quality: a.communication_clarity_score ?? null,
+            scores: raw?.scores || {
+                professionalism: n.communication_clarity_score ?? null,
+                empathy: n.customer_satisfaction === 'high' ? 5 : n.customer_satisfaction === 'medium' ? 3 : 1,
+                quality: n.communication_clarity_score ?? null,
             },
             fullAnalysis: {
                 quality_assessment: {
-                    conversation_quality_score: a.communication_clarity_score ?? null,
-                    qa_verdict: a.customer_satisfaction || '—',
+                    conversation_quality_score: n.communication_clarity_score ?? null,
+                    qa_verdict: n.customer_satisfaction || '—',
                     main_failures: [],
                 },
                 ticket_summary: {
-                    short_summary: a.conversation_summary || a.summary_for_dashboard || '',
+                    short_summary: n.conversation_summary || n.summary_for_dashboard || '',
                 },
                 agent_analysis: {
-                    agent_professionalism_score: a.communication_clarity_score ?? null,
-                    agent_empathy_score: a.customer_satisfaction === 'high' ? 5 : a.customer_satisfaction === 'medium' ? 3 : 1,
-                    tone_reasoning: a.agent_behavior || '',
-                    overall_tone: a.agent_behavior || '',
+                    agent_professionalism_score: n.communication_clarity_score ?? null,
+                    agent_empathy_score: n.customer_satisfaction === 'high' ? 5 : n.customer_satisfaction === 'medium' ? 3 : 1,
+                    tone_reasoning: n.agent_behavior || '',
+                    overall_tone: n.agent_behavior || '',
                     issues: [],
                 },
                 resolution_analysis: {
-                    resolution_status: a.resolution_status || '—',
-                    resolution_reasoning: a.conversation_summary || '',
-                    ticket_closed_correctly: a.resolution_status === 'resolved',
+                    resolution_status: n.resolution_status || '—',
+                    resolution_reasoning: n.conversation_summary || '',
+                    ticket_closed_correctly: n.resolution_status === 'resolved',
+                },
+                customer_analysis: {
+                    dominant_emotion: n.dominant_customer_emotion || '—',
+                    emotion_trend: n.emotion_trend || null,
+                    churn_probability: n.churn_prob ?? null,
+                },
+                meta: {
+                    provider: raw?.provider || null,
+                    analyzedAt: raw?.metadata?.analyzedAt || null,
                 },
             },
             teamLeaderNotes: raw?.teamLeaderNotes || [],

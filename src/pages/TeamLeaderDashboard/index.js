@@ -19,6 +19,7 @@ import SLASection from "./components/SLASection";
 import WorkloadSection from "./components/WorkloadSection";
 import TopAgents from "./components/TopAgents";
 import LowPerformers from "./components/LowPerformers";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from 'recharts';
 import {
     Squares2X2Icon,
     UserGroupIcon,
@@ -560,24 +561,13 @@ function TicketsView({ agents = [] }) {
         setLoadingMsgs(false);
     };
 
-    const refreshQADetail = async (analysisId) => {
-        const detail = await teamLeaderApi.getQADetail(analysisId);
-        setQaData(detail);
-    };
-
     const loadExistingQA = async () => {
         if (!selectedTicket) return;
         setLoadingQA(true);
         try {
-            const existing = await teamLeaderApi.getQAResults(`?ticketId=${selectedTicket._id}&limit=1`);
-            const items = existing?.results || [];
-            if (items.length > 0) {
-                await refreshQADetail(items[0]._id);
-            } else {
-                setQaData(null);
-            }
+            const detail = await teamLeaderApi.getQADetail(selectedTicket._id);
+            setQaData(detail);
         } catch (e) {
-            console.error(e);
             setQaData(null);
         }
         setLoadingQA(false);
@@ -609,9 +599,8 @@ function TicketsView({ agents = [] }) {
         try {
             await teamLeaderApi.patchTicketQANotes(selectedTicket._id, noteDraft.trim());
             setNoteDraft('');
-            const existing = await teamLeaderApi.getQAResults(`?ticketId=${selectedTicket._id}&limit=1`);
-            const items = existing?.results || [];
-            if (items.length > 0) await refreshQADetail(items[0]._id);
+            const detail = await teamLeaderApi.getQADetail(selectedTicket._id);
+            setQaData(detail);
         } catch (e) {
             alert(e.message || 'Could not save note');
         }
@@ -627,6 +616,28 @@ function TicketsView({ agents = [] }) {
     const fa = pickFullAnalysis(qaData);
     const scores = qaData?.scores || {};
     const overallNum = fa?.quality_assessment?.conversation_quality_score ?? scores.quality ?? null;
+
+    const scoreChartData = [
+        { name: 'Professionalism', value: scores.professionalism ?? fa?.agent_analysis?.agent_professionalism_score ?? 0, color: '#137c9f' },
+        { name: 'Empathy', value: scores.empathy ?? fa?.agent_analysis?.agent_empathy_score ?? 0, color: '#2ecc71' },
+        { name: 'Quality', value: scores.quality ?? fa?.quality_assessment?.conversation_quality_score ?? 0, color: '#f39c12' },
+    ].filter(d => d.value > 0);
+
+    const EMOTION_COLORS = {
+        neutral: '#97a3b6',
+        happy: '#22c55e',
+        satisfied: '#22c55e',
+        positive: '#22c55e',
+        frustrated: '#ef4444',
+        angry: '#ef4444',
+        sad: '#f59e0b',
+        disappointed: '#f59e0b',
+        anxious: '#f97316',
+        worried: '#f97316',
+        surprised: '#8b5cf6',
+        unclear: '#6b7280',
+    };
+    const getEmotionColor = (emotion) => EMOTION_COLORS[emotion?.toLowerCase()] || '#97a3b6';
 
     return (
         <div className="cd-view-container" style={{ display: 'flex', height: '100%', gap: 0 }}>
@@ -764,43 +775,185 @@ function TicketsView({ agents = [] }) {
                                 </div>
                             ) : qaData && fa ? (
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                                    <div style={{ background: '#fff', borderRadius: 16, padding: 20, border: '1px solid #e6e9ed', display: 'flex', alignItems: 'center', gap: 20 }}>
-                                        <div style={{ width: 80, height: 80, borderRadius: '50%', background: '#f0f2f5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22, fontWeight: 800, color: '#042835' }}>
-                                            {overallNum != null ? Math.round(overallNum) : '—'}
+                                    <div style={{ background: '#fff', borderRadius: 16, padding: 20, border: '1px solid #e6e9ed', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', display: 'flex', alignItems: 'center', gap: 20 }}>
+                                        <div style={{ position: 'relative', width: 90, height: 90 }}>
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <PieChart>
+                                                    <Pie data={[
+                                                        { name: 'Score', value: overallNum != null ? overallNum : 0, color: overallNum >= 4 ? '#22c55e' : overallNum >= 2.5 ? '#f39c12' : '#ef4444' },
+                                                        { name: 'Remaining', value: overallNum != null ? 5 - overallNum : 5, color: '#f0f2f5' },
+                                                    ]} cx="50%" cy="50%" innerRadius={26} outerRadius={40}
+                                                        startAngle={90} endAngle={-270} dataKey="value" stroke="none"
+                                                        cornerRadius={4}>
+                                                        {[0, 1].map((i) => (
+                                                            <Cell key={i} fill={i === 0 ? (overallNum >= 4 ? '#22c55e' : overallNum >= 2.5 ? '#f39c12' : '#ef4444') : '#f0f2f5'}
+                                                                style={{ filter: i === 0 ? `drop-shadow(0 2px 6px ${overallNum >= 4 ? '#22c55e' : overallNum >= 2.5 ? '#f39c12' : '#ef4444'}66)` : 'none' }} />
+                                                        ))}
+                                                    </Pie>
+                                                </PieChart>
+                                            </ResponsiveContainer>
+                                            <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', fontSize: 20, fontWeight: 800, color: '#042835', textAlign: 'center', lineHeight: 1 }}>
+                                                {overallNum != null ? Math.round(overallNum) : '—'}
+                                            </div>
                                         </div>
                                         <div>
                                             <p style={{ margin: 0, fontSize: 13, color: '#97a3b6' }}>Conversation quality</p>
-                                            <p style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 700, color: '#042835' }}>{fa.quality_assessment?.qa_verdict || '—'}</p>
+                                            <p style={{ margin: '4px 0 0', fontSize: 16, fontWeight: 700, color: '#042835' }}>
+                                                <span style={{
+                                                    display: 'inline-block', padding: '2px 10px', borderRadius: 12, fontSize: 13,
+                                                    background: (fa.quality_assessment?.qa_verdict === 'high' ? '#22c55e' : fa.quality_assessment?.qa_verdict === 'medium' ? '#f39c12' : fa.quality_assessment?.qa_verdict === 'low' ? '#ef4444' : '#f0f2f5') + '20',
+                                                    color: fa.quality_assessment?.qa_verdict === 'high' ? '#16a34a' : fa.quality_assessment?.qa_verdict === 'medium' ? '#d97706' : fa.quality_assessment?.qa_verdict === 'low' ? '#dc2626' : '#667085',
+                                                }}>
+                                                    {fa.quality_assessment?.qa_verdict || '—'}
+                                                </span>
+                                            </p>
                                             <p style={{ margin: '4px 0 0', fontSize: 12, color: '#667085' }}>{fa.ticket_summary?.short_summary || ''}</p>
                                         </div>
                                     </div>
 
-                                    <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed' }}>
+                                    <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                         <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 14, color: '#042835' }}>Scores</p>
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(140px, 1fr))', gap: 10, fontSize: 13 }}>
-                                            <div>Professionalism: <strong>{scores.professionalism ?? fa.agent_analysis?.agent_professionalism_score ?? '—'}</strong></div>
-                                            <div>Empathy: <strong>{scores.empathy ?? fa.agent_analysis?.agent_empathy_score ?? '—'}</strong></div>
-                                            <div>Quality: <strong>{scores.quality ?? fa.quality_assessment?.conversation_quality_score ?? '—'}</strong></div>
-                                        </div>
+                                        {scoreChartData.length > 0 ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                                <div style={{ width: 100, height: 100, flexShrink: 0 }}>
+                                                    <ResponsiveContainer width="100%" height="100%">
+                                                        <PieChart>
+                                                            <Pie data={scoreChartData} cx="50%" cy="50%" innerRadius={28} outerRadius={46}
+                                                                paddingAngle={3} dataKey="value" stroke="none">
+                                                                {scoreChartData.map((entry, index) => (
+                                                                    <Cell key={index} fill={entry.color}
+                                                                        style={{ filter: `drop-shadow(0 2px 6px ${entry.color}66)` }} />
+                                                                ))}
+                                                            </Pie>
+                                                            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e6e9ed', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                                                formatter={(val) => [val, 'Score /5']} />
+                                                        </PieChart>
+                                                    </ResponsiveContainer>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1 }}>
+                                                    {scoreChartData.map((entry) => (
+                                                        <div key={entry.name} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                            <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, flexShrink: 0 }} />
+                                                            <span style={{ fontSize: 12, color: '#667085', flex: 1 }}>{entry.name}</span>
+                                                            <div style={{ width: 60, height: 6, background: '#f0f2f5', borderRadius: 3, overflow: 'hidden' }}>
+                                                                <div style={{ width: `${(entry.value / 5) * 100}%`, height: '100%', borderRadius: 3, background: entry.color, transition: 'width 0.5s ease' }} />
+                                                            </div>
+                                                            <strong style={{ fontSize: 13, color: '#042835', width: 24, textAlign: 'right' }}>{entry.value}</strong>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p style={{ fontSize: 13, color: '#97a3b6' }}>No scores available</p>
+                                        )}
                                     </div>
 
+                                    {fa.customer_analysis && (
+                                        <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
+                                            <p style={{ margin: '0 0 12px', fontWeight: 700, fontSize: 14, color: '#042835' }}>Customer analysis</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 13 }}>
+                                                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                                                    <span style={{ color: '#667085' }}>Dominant emotion:</span>
+                                                    <span style={{
+                                                        display: 'inline-block', padding: '3px 10px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                                                        background: `${getEmotionColor(fa.customer_analysis.dominant_emotion)}20`,
+                                                        color: getEmotionColor(fa.customer_analysis.dominant_emotion),
+                                                        textTransform: 'capitalize',
+                                                        boxShadow: `0 1px 4px ${getEmotionColor(fa.customer_analysis.dominant_emotion)}40`,
+                                                    }}>
+                                                        {fa.customer_analysis.dominant_emotion}
+                                                    </span>
+                                                </div>
+                                                {fa.customer_analysis.emotion_trend && (
+                                                    <div>
+                                                        <span style={{ color: '#667085', display: 'block', marginBottom: 6 }}>Emotion trend:</span>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+                                                            {['start', 'average', 'end'].map((stage, i) => (
+                                                                <div key={stage} style={{ display: 'flex', alignItems: 'center', flex: 1 }}>
+                                                                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, position: 'relative' }}>
+                                                                        <div style={{
+                                                                            width: 12, height: 12, borderRadius: '50%',
+                                                                            background: getEmotionColor(fa.customer_analysis.emotion_trend[stage]),
+                                                                            boxShadow: `0 0 0 3px ${getEmotionColor(fa.customer_analysis.emotion_trend[stage])}20, 0 2px 6px ${getEmotionColor(fa.customer_analysis.emotion_trend[stage])}50`,
+                                                                            position: 'relative', zIndex: 1,
+                                                                        }} />
+                                                                        <span style={{ fontSize: 9, color: '#97a3b6', textTransform: 'capitalize', fontWeight: 500 }}>{stage}</span>
+                                                                        <span style={{ fontSize: 11, fontWeight: 600, color: '#042835', textTransform: 'capitalize' }}>
+                                                                            {fa.customer_analysis.emotion_trend[stage]}
+                                                                        </span>
+                                                                    </div>
+                                                                    {i < 2 && (
+                                                                        <div style={{
+                                                                            flex: 1, height: 2,
+                                                                            background: `linear-gradient(90deg, ${getEmotionColor(fa.customer_analysis.emotion_trend[stage])}, ${getEmotionColor(fa.customer_analysis.emotion_trend[['start', 'average', 'end'][i + 1]])})`,
+                                                                            marginBottom: 32, marginLeft: -1, marginRight: -1,
+                                                                        }} />
+                                                                    )}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                <div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                                                        <span style={{ color: '#667085' }}>Churn probability</span>
+                                                        <strong style={{ color: fa.customer_analysis.churn_probability != null && fa.customer_analysis.churn_probability > 0.5 ? '#991b1b' : '#137c9f' }}>
+                                                            {fa.customer_analysis.churn_probability != null ? `${Math.round(fa.customer_analysis.churn_probability * 100)}%` : '—'}
+                                                        </strong>
+                                                    </div>
+                                                    {fa.customer_analysis.churn_probability != null && (
+                                                        <div style={{ width: '100%', height: 10, background: '#f0f2f5', borderRadius: 5, overflow: 'hidden', boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.06)' }}>
+                                                            <div style={{
+                                                                width: `${Math.min(fa.customer_analysis.churn_probability * 100, 100)}%`,
+                                                                height: '100%',
+                                                                borderRadius: 5,
+                                                                background: fa.customer_analysis.churn_probability > 0.5
+                                                                    ? 'linear-gradient(90deg, #f59e0b, #ef4444)'
+                                                                    : 'linear-gradient(90deg, #22c55e, #f59e0b)',
+                                                                transition: 'width 0.5s ease',
+                                                                boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+                                                            }} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
                                     {fa.resolution_analysis && (
-                                        <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed' }}>
+                                        <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                             <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 14, color: '#042835' }}>Resolution</p>
                                             <p style={{ margin: 0, fontSize: 13, color: '#667085', lineHeight: 1.5 }}>
-                                                <strong>{fa.resolution_analysis.resolution_status}</strong>
+                                                <span style={{
+                                                    display: 'inline-block', padding: '1px 8px', borderRadius: 10, fontSize: 12, fontWeight: 600,
+                                                    background: fa.resolution_analysis.resolution_status === 'resolved' ? '#22c55e20' : fa.resolution_analysis.resolution_status === 'escalated' ? '#ef444420' : '#f59e0b20',
+                                                    color: fa.resolution_analysis.resolution_status === 'resolved' ? '#16a34a' : fa.resolution_analysis.resolution_status === 'escalated' ? '#dc2626' : '#d97706',
+                                                    textTransform: 'capitalize',
+                                                }}>
+                                                    {fa.resolution_analysis.resolution_status}
+                                                </span>
                                                 {fa.resolution_analysis.resolution_reasoning ? ` — ${fa.resolution_analysis.resolution_reasoning}` : ''}
                                             </p>
-                                            <p style={{ margin: '8px 0 0', fontSize: 12, color: '#97a3b6' }}>
-                                                Ticket closed correctly: {fa.resolution_analysis.ticket_closed_correctly ? 'Yes' : 'No'}
-                                            </p>
+                                            <div style={{ marginTop: 10, display: 'flex', gap: 6, alignItems: 'center' }}>
+                                                <span style={{
+                                                    width: 8, height: 8, borderRadius: '50%',
+                                                    background: fa.resolution_analysis.ticket_closed_correctly ? '#22c55e' : '#ef4444',
+                                                    boxShadow: fa.resolution_analysis.ticket_closed_correctly ? '0 0 6px #22c55e66' : '0 0 6px #ef444466',
+                                                    display: 'inline-block',
+                                                }} />
+                                                <span style={{ fontSize: 12, color: '#97a3b6' }}>
+                                                    {fa.resolution_analysis.ticket_closed_correctly ? 'Closed correctly' : 'Not closed correctly'}
+                                                </span>
+                                            </div>
                                         </div>
                                     )}
 
                                     {fa.agent_analysis && (
-                                        <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed' }}>
+                                        <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                             <p style={{ margin: '0 0 8px', fontWeight: 700, fontSize: 14, color: '#042835' }}>Agent behavior</p>
-                                            <p style={{ margin: 0, fontSize: 13, color: '#667085', lineHeight: 1.5 }}>{fa.agent_analysis.tone_reasoning || fa.agent_analysis.overall_tone}</p>
+                                            <div style={{ padding: 10, background: '#f8f9fa', borderRadius: 8, border: '1px solid #f0f2f5', fontSize: 13, color: '#667085', lineHeight: 1.5 }}>
+                                                {fa.agent_analysis.tone_reasoning || fa.agent_analysis.overall_tone}
+                                            </div>
                                             {((fa.quality_assessment?.main_failures || fa.agent_analysis?.issues || [])).length > 0 && (
                                                 <ul style={{ margin: '10px 0 0', paddingLeft: 18, fontSize: 12, color: '#991b1b' }}>
                                                     {(fa.quality_assessment?.main_failures || fa.agent_analysis?.issues || []).slice(0, 8).map((x, i) => (
@@ -811,7 +964,14 @@ function TicketsView({ agents = [] }) {
                                         </div>
                                     )}
 
-                                    <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed' }}>
+                                    {fa.meta && (fa.meta.provider || fa.meta.analyzedAt) && (
+                                        <div style={{ fontSize: 11, color: '#97a3b6', textAlign: 'right' }}>
+                                            {fa.meta.provider && <span style={{ textTransform: 'capitalize' }}>{fa.meta.provider}</span>}
+                                            {fa.meta.analyzedAt && <span> • {new Date(fa.meta.analyzedAt).toLocaleString()}</span>}
+                                        </div>
+                                    )}
+
+                                    <div style={{ background: '#fff', borderRadius: 12, padding: '14px 18px', border: '1px solid #e6e9ed', boxShadow: '0 2px 8px rgba(0,0,0,0.04)' }}>
                                         <p style={{ margin: '0 0 10px', fontWeight: 700, fontSize: 14, color: '#042835' }}>Your notes</p>
                                         {(qaData.teamLeaderNotes || []).length > 0 && (
                                             <div style={{ marginBottom: 12, maxHeight: 160, overflowY: 'auto' }}>
